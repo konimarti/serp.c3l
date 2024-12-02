@@ -49,7 +49,7 @@ import serp::command;
 
 Command root = command::new(
     use: "app",
-    run: fn void!(String[] args, Option[] opts) {
+    run: fn void!(Command *c, String[] args, Option[] opts) {
         io::printn("hello app");
     }
 );
@@ -62,7 +62,7 @@ To add subcommands, use the `Command.add_command(Command*)` function:
 root.add_command(
     command::new(
         use: "init",
-        run: fn void!(String[] args, Option[] opts) {
+        run: fn void!(Command *c, String[] args, Option[] opts) {
             io::printn("app init");
         }
     )
