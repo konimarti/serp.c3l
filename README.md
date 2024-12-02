@@ -95,7 +95,7 @@ struct Flag {
 
 ```
 
-## Examples
+## Example
 
 ```cpp
 module app;
