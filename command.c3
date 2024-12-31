@@ -104,7 +104,7 @@ fn void! Command.usage(&self, OutStream out = io::stdout())
 fn void! Command.execute(&self, String[] args)
 {
 	int optind;
-	@pool()
+	@pool(self.allocator)
 	{
 		Option[]! opts = getopt::parse_temp(args, self.flags.to_tarray(), &optind);
 		if (catch err = opts)

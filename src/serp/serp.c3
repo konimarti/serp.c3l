@@ -34,21 +34,24 @@ fn void! show_args_and_opts(String cmd, Command *c, String[] args, Option[] opts
 
 fn void! main(String[] args)
 {
-	Command root = command::new(use: "app [commands] [flags]", run: &root_cmd)
-	.set_desc("describe your command here")
-	.add_command(
-		command::new(use: "init [flags]", run: &init_cmd)
-		.add_flag({.shortopt = 'p', .desc = "path", .optarg = true})
-		.add_flag({.shortopt = 'n', .desc = "name", .optarg = true})
-		.set_desc("'init' your app with this command")
-	)
-	.add_command(
-		command::new(use: "add [flags] <name>", run: &add_cmd)
-		.add_flag({.shortopt = 'f', .longopt = "force"})
-		.set_desc("'add' something to your app")
-	);
+	mem::@report_heap_allocs_in_scope()
+	{
+		Command root = command::new(use: "app [commands] [flags]", run: &root_cmd)
+		.set_desc("describe your command here")
+		.add_command(
+			command::new(use: "init [flags]", run: &init_cmd)
+			.add_flag({.shortopt = 'p', .desc = "path", .optarg = true})
+			.add_flag({.shortopt = 'n', .desc = "name", .optarg = true})
+			.set_desc("'init' your app with this command")
+		)
+		.add_command(
+			command::new(use: "add [flags] <name>", run: &add_cmd)
+			.add_flag({.shortopt = 'f', .longopt = "force"})
+			.set_desc("'add' something to your app")
+		);
 
-	defer root.free();
+		defer root.free();
 
-	return root.execute(args);
+		return root.execute(args);
+	};
 }
