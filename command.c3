@@ -5,7 +5,7 @@ import serp::getopt;
 import std::collections::list;
 import std::io;
 
-def RunFunc = fn void!(Command *c, String[], Option[]);
+alias RunFunc = fn void?(Command *c, String[], Option[]);
 
 struct Command
 {
@@ -13,16 +13,16 @@ struct Command
 	RunFunc run;
 	String desc;
 
-	List(<Flag>) flags;
-	List(<Command>) cmds;
+	List {Flag} flags;
+	List {Command} cmds;
 	Allocator allocator;
 }
 
 fn Command new(String use, RunFunc run, Allocator allocator = allocator::heap())
 {
 	Command cmd = {.use = use, .run = run, .allocator = allocator};
-	cmd.flags.new_init(4, allocator);
-	cmd.cmds.new_init(4, allocator);
+	cmd.flags.init(allocator, 4);
+	cmd.cmds.init(allocator, 4);
 	return cmd;
 }
 
@@ -30,8 +30,8 @@ fn Command new(String use, RunFunc run, Allocator allocator = allocator::heap())
 fn Command Command.init(&self, String use, RunFunc run, Allocator allocator)
 {
 	*self = {.use = use, .run = run, .allocator = allocator};
-	self.flags.new_init(4, allocator);
-	self.cmds.new_init(4, allocator);
+	self.flags.init(allocator, 4);
+	self.cmds.init(allocator, 4);
 	return *self;
 }
 
@@ -40,7 +40,7 @@ fn void Command.free(&self)
 	self.flags.free();
 	foreach (cmd : self.cmds) cmd.free();
 	self.cmds.free();
-	if (self.desc) self.desc.free();
+	if (self.desc) self.desc.free(self.allocator);
 }
 
 fn Command Command.set_desc(&self, String s)
@@ -61,7 +61,7 @@ fn Command Command.add_command(&self, Command c)
 	return *self;
 }
 
-fn void! Command.usage(&self, OutStream out = io::stdout())
+fn void? Command.usage(&self, OutStream out = io::stdout())
 {
 	const PREFIX = "  ";
 	if (self.desc) io::fprintf(out, "\n%s\n", self.desc)!;
@@ -101,12 +101,12 @@ fn void! Command.usage(&self, OutStream out = io::stdout())
 }
 
 
-fn void! Command.execute(&self, String[] args)
+fn void? Command.execute(&self, String[] args)
 {
 	int optind;
-	@pool(self.allocator)
+	@pool()
 	{
-		Option[]! opts = getopt::parse_temp(args, self.flags.to_tarray(), &optind);
+		Option[]? opts = getopt::parse_temp(args, self.flags.to_tarray(), &optind);
 		if (catch err = opts)
 		{
 			io::eprintf("Failed to parse option: %s\n", err);

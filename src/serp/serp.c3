@@ -2,22 +2,22 @@ module serp;
 
 import std::io;
 
-fn void! root_cmd(Command *c, String[] args, Option[] opts)
+fn void? root_cmd(Command *c, String[] args, Option[] opts)
 {
 	return show_args_and_opts("root", c, args, opts);
 }
 
-fn void! init_cmd(Command *c, String[] args, Option[] opts)
+fn void? init_cmd(Command *c, String[] args, Option[] opts)
 {
 	return show_args_and_opts("init", c, args, opts);
 }
 
-fn void! add_cmd(Command *c, String[] args, Option[] opts)
+fn void? add_cmd(Command *c, String[] args, Option[] opts)
 {
 	return show_args_and_opts("add", c, args, opts);
 }
 
-fn void! show_args_and_opts(String cmd, Command *c, String[] args, Option[] opts)
+fn void? show_args_and_opts(String cmd, Command *c, String[] args, Option[] opts)
 {
 	io::printfn("Command: %s", cmd);
 	io::printn("--------");
@@ -32,9 +32,9 @@ fn void! show_args_and_opts(String cmd, Command *c, String[] args, Option[] opts
 	return c.usage();
 }
 
-fn void! main(String[] args)
+fn void main(String[] args)
 {
-	mem::@report_heap_allocs_in_scope()
+	mem::@assert_leak()
 	{
 		Command root = command::new(use: "app [commands] [flags]", run: &root_cmd)
 		.set_desc("describe your command here")
@@ -52,6 +52,6 @@ fn void! main(String[] args)
 
 		defer root.free();
 
-		return root.execute(args);
+		root.execute(args)!!;
 	};
 }
