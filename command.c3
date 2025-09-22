@@ -9,12 +9,14 @@ alias RunFunc = fn void?(Command *c, String[], Option[]);
 
 struct Command
 {
+	// User-provided data
 	String use;
 	RunFunc run;
 	String desc;
 
+	// Internal data
 	List {Flag} flags;
-	List {Command} cmds;
+	List {Command*} cmds;
 	Allocator allocator;
 }
 
@@ -26,39 +28,38 @@ fn Command new(String use, RunFunc run, Allocator allocator = mem)
 	return cmd;
 }
 
-
-fn Command Command.init(&self, String use, RunFunc run, Allocator allocator)
-{
-	*self = {.use = use, .run = run, .allocator = allocator};
-	self.flags.init(allocator, 4);
-	self.cmds.init(allocator, 4);
-	return *self;
-}
+fn Command temp(String use, RunFunc run) => new(use, run, tmem);
 
 fn void Command.free(&self)
 {
+	if (!self.allocator) return;
+
 	self.flags.free();
+
 	foreach (cmd : self.cmds) cmd.free();
 	self.cmds.free();
+
 	if (self.desc) self.desc.free(self.allocator);
+
+	*self = {};
 }
 
-fn Command Command.set_desc(&self, String s)
+fn Command* Command.describe(&self, String s)
 {
 	self.desc = s.copy(self.allocator);
-	return *self;
+	return self;
 }
 
-fn Command Command.add_flag(&self, Flag f)
+fn Command* Command.add_flag(&self, Flag f)
 {
 	self.flags.push(f);
-	return *self;
+	return self;
 }
 
-fn Command Command.add_command(&self, Command c)
+fn Command* Command.add_command(&self, Command *c)
 {
-	self.cmds.push(c);
-	return *self;
+	if (c) self.cmds.push(c);
+	return self;
 }
 
 fn void? Command.usage(&self, OutStream out = io::stdout())
@@ -101,32 +102,35 @@ fn void? Command.usage(&self, OutStream out = io::stdout())
 }
 
 
-fn void? Command.execute(&self, String[] args)
+fn void? Command.execute(&self, String[] args) => @pool()
 {
 	int optind;
-	@pool()
+	Option[]? opts = getopt::parse_temp(args, self.flags.to_tarray(), &optind);
+	if (catch err = opts)
 	{
-		Option[]? opts = getopt::parse_temp(args, self.flags.to_tarray(), &optind);
-		if (catch err = opts)
+		io::eprintf("Failed to parse option: %s\n", err);
+		return self.usage();
+	}
+	if (optind < args.len) {
+		String arg = args[optind];
+		foreach (sub : self.cmds)
 		{
-			io::eprintf("Failed to parse option: %s\n", err);
-			return self.usage();
-		}
-		if (optind < args.len) {
-			String arg = args[optind];
-			foreach (sub : self.cmds)
+			String cmd = sub.use;
+			if (try n = cmd.index_of_char(' ')) cmd = cmd[:n];
+			if (arg == cmd)
 			{
-				String cmd = sub.use;
-				if (try n = cmd.index_of_char(' ')) cmd = cmd[:n];
-				if (arg == cmd)
-				{
-					io::printfn("execute sub-command: %s", cmd);
-					return sub.execute(args[optind..]);
-				}
+				$if $feature(DEBUG):
+				io::printfn("execute sub-command: %s", cmd);
+				$endif
+				return sub.execute(args[optind..]);
 			}
-			io::printfn("positional arguments: %s", args[optind..]);
 		}
-		io::printfn("run command: %s", self.use);
-		return self.run(self, args[optind..], opts);
-	};
+		$if $feature(DEBUG):
+		io::printfn("positional arguments: %s", args[optind..]);
+		$endif
+	}
+	$if $feature(DEBUG):
+	io::printfn("run command: %s", self.use);
+	$endif
+	return self.run(self, args[optind..], opts);
 }

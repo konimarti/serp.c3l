@@ -1,21 +1,18 @@
-module serp;
+module serp_app;
+
+import serp;
 
 import std::io;
 
 fn void? root_cmd(Command *c, String[] args, Option[] opts)
-{
-	return show_args_and_opts("root", c, args, opts);
-}
+	=> show_args_and_opts("root", c, args, opts);
 
 fn void? init_cmd(Command *c, String[] args, Option[] opts)
-{
-	return show_args_and_opts("init", c, args, opts);
-}
+	=> show_args_and_opts("init", c, args, opts);
 
 fn void? add_cmd(Command *c, String[] args, Option[] opts)
-{
-	return show_args_and_opts("add", c, args, opts);
-}
+	=> show_args_and_opts("add", c, args, opts);
+
 
 fn void? show_args_and_opts(String cmd, Command *c, String[] args, Option[] opts)
 {
@@ -32,26 +29,23 @@ fn void? show_args_and_opts(String cmd, Command *c, String[] args, Option[] opts
 	return c.usage();
 }
 
-fn void main(String[] args)
+fn void main(String[] args) => @assert_leak()
 {
-	mem::@assert_leak()
-	{
-		Command root = command::new(use: "app [commands] [flags]", run: &root_cmd)
-		.set_desc("describe your command here")
-		.add_command(
-			command::new(use: "init [flags]", run: &init_cmd)
-			.add_flag({.shortopt = 'p', .desc = "path", .optarg = true})
-			.add_flag({.shortopt = 'n', .desc = "name", .optarg = true})
-			.set_desc("'init' your app with this command")
-		)
-		.add_command(
-			command::new(use: "add [flags] <name>", run: &add_cmd)
-			.add_flag({.shortopt = 'f', .longopt = "force"})
-			.set_desc("'add' something to your app")
-		);
+	Command *root = command::new(use: "app [commands] [flags]", run: &root_cmd)
+	.describe("describe your command here")
+	.add_command(
+		command::new(use: "init [flags]", run: &init_cmd)
+		.add_flag({.shortopt = 'p', .desc = "path", .optarg = true})
+		.add_flag({.shortopt = 'n', .desc = "name", .optarg = true})
+		.describe("'init' your app with this command")
+	)
+	.add_command(
+		command::new(use: "add [flags] <name>", run: &add_cmd)
+		.add_flag({.shortopt = 'f', .longopt = "force"})
+		.describe("'add' something to your app")
+	);
 
-		defer root.free();
+	defer root.free();
 
-		root.execute(args)!!;
-	};
+	root.execute(args)!!;
 }

@@ -43,7 +43,7 @@ faultdef UNKNOWN_OPTION, MISSING_ARGUMENT;
  @return? UNKNOWN_OPTION, MISSING_ARGUMENT
 
 *>
-fn Option[]? parse(String[] args, Flag[] flags, int *optind, Allocator allocator)
+fn Option[]? parse(String[] args, Flag[] flags, int *optind, Allocator allocator) => @pool()
 {
 	int i;
 
@@ -146,26 +146,23 @@ fn Option[]? parse_temp(String[] args, Flag[] flags, int *optind = null) @inline
 	return parse(args, flags, optind, tmem);
 }
 
-fn Option[]? getopts(String[] args, String optstr, int *optind = null, Allocator allocator)
+fn Option[]? getopts(String[] args, String optstr, int *optind = null, Allocator allocator) => @pool()
 {
-	@pool()
+	Flag[] flags = mem::talloc_array(Flag, optstr.len);
+	int i = 0;
+	foreach (c : optstr)
 	{
-		Flag[] flags = mem::talloc_array(Flag, optstr.len);
-		int i = 0;
-		foreach (c : optstr)
+		if (c == ':')
 		{
-			if (c == ':')
-			{
-				flags[i].optarg = true;
-			}
-			else
-			{
-				flags[i].shortopt = c;
-				i++;
-			}
+			flags[i].optarg = true;
 		}
-		return parse(args, flags, optind, allocator);
-	};
+		else
+		{
+			flags[i].shortopt = c;
+			i++;
+		}
+	}
+	return parse(args, flags, optind, allocator);
 }
 
 fn Option[]? getopts_new(String[] args, String optstr, int *optind = null) @inline
