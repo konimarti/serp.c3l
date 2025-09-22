@@ -138,12 +138,12 @@ fn Option[]? parse(String[] args, Flag[] flags, int *optind, Allocator allocator
 
 fn Option[]? parse_new(String[] args, Flag[] flags, int *optind = null) @inline
 {
-	return parse(args, flags, optind, allocator::heap());
+	return parse(args, flags, optind, mem);
 }
 
 fn Option[]? parse_temp(String[] args, Flag[] flags, int *optind = null) @inline
 {
-	return parse(args, flags, optind, allocator::temp());
+	return parse(args, flags, optind, tmem);
 }
 
 fn Option[]? getopts(String[] args, String optstr, int *optind = null, Allocator allocator)
@@ -170,11 +170,11 @@ fn Option[]? getopts(String[] args, String optstr, int *optind = null, Allocator
 
 fn Option[]? getopts_new(String[] args, String optstr, int *optind = null) @inline
 {
-	return getopts(args, optstr, optind, allocator::heap());
+	return getopts(args, optstr, optind, mem);
 }
 
 fn Option[]? getopts_temp(String[] args, String optstr, int *optind = null) @inline
 {
-	return getopts(args, optstr, optind, allocator::temp());
+	return getopts(args, optstr, optind, tmem);
 }
 

@@ -18,7 +18,7 @@ struct Command
 	Allocator allocator;
 }
 
-fn Command new(String use, RunFunc run, Allocator allocator = allocator::heap())
+fn Command new(String use, RunFunc run, Allocator allocator = mem)
 {
 	Command cmd = {.use = use, .run = run, .allocator = allocator};
 	cmd.flags.init(allocator, 4);
