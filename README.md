@@ -6,161 +6,145 @@
               |_|
 ```
 
-# A Commander for C3 CLI applications
+# Serp: a commander for C3 command line apps
 
-Serp is a library for creating powerful modern CLI applications in C3.
-Inspired by [cobra](http://github.com/spf13/cobra).
+Serp is a small library for building modern CLI applications with
+subcommands in [C3](https://c3-lang.org), inspired by Go's
+[cobra](https://github.com/spf13/cobra). Needs `c3c` 0.8.x.
 
+- Nested subcommands, aliases, hidden/deprecated commands, command groups
+- POSIX flags: `-a`, `-abc`, `-pVALUE`, `-p VALUE`, `--port=80`, `--port 80`, `--`
+- Persistent flags (inherited by subcommands), required flags, defaults,
+  environment variable fallback, binding to variables
+- Positional argument validators (`exact_args`, `min_args`, ...)
+- Automatic `--help`/`-h`, `help <cmd>`, `--version`, colored help on terminals
+- "Did you mean ...?" for mistyped commands and flags
+- Shell completion for bash, zsh and fish (`app completion bash`)
+- Markdown and man page generation (`app docs markdown|man`)
+- Meaningful exit codes, errors on stderr, leak free (tested with `@assert_leak`)
 
-## Overview
-
-Serp provides:
-- Easy subcommand-based CLIs: `app serve`, `app fetch`, etc.
-- Fully POSIX-compliant flags (including short and long versions)
-- Nested subcommands
-- Automatic help generation for commands and flags
-
-In the works:
-- Automatic help flag recognition of `-h`, `--help` (TODO)
-- Command aliases so you can change things without breaking them
-
-
-## Concepts
-
-Serp is built on a structure of commands and flags - heavely inspired by
-[cobra](http://github.com/spf13/cobra).
-
-*Commands* represent actions and *flags* are modifiers for those actions.
-
-Well-designed CLI apps follow a certain usage pattern; the commands should 
-read like sentences: `app verb noun` or `app command argument
---flags`.
-
-
-### Commands
-
-Command is the central point of the application.
-A command can have children commands an optionally run an action.
-
-Create a command with `command::new`:
-
-```cpp
-import serp::command;
-
-Command *root = command::new(
-    use: "app",
-    run: fn void!(Command *c, String[] args, Option[] opts) {
-        io::printn("hello app");
-    }
-);
-
-```
-
-To add subcommands, use the `Command.add_command(Command*)` function:
-
-```cpp
-root.add_command(
-    command::new(
-        use: "init",
-        run: fn void!(Command *c, String[] args, Option[] opts) {
-            io::printn("app init");
-        }
-    )
-);
-
-```
-
-### Flags
-
-A flag is a way to modify the behavior of a command. POSIX-compliant flags are
-supported.
-
-Flags can be defined per command with `Command.add_flag(Flag)`:
-
-```cpp
-root.add_flag({.shortopt = 'p', .longopt = 'path', .optarg = true});
-```
-The above example will set a flag on the root command that expects an optional
-argument. The flag can then be set with `-p` or `--path` on the command line.
-
-The parameter to the `add_flag` function is a `struct Flag` that
-contains the following fields:
-```cpp
-struct Flag {
-        char    shortopt; // short option name, e.g. 'p'
-        String  longopt;  // long option name, e.g. "path"
-        bool    optarg;   // set true if flag has an optional argument
-        String  desc;     // describe the purpose of the flag
-}
-
-```
-
-## Example
+## Quick start
 
 ```c3
-module serp_app;
+module hello;
 
 import serp;
-
 import std::io;
 
-fn void? root_cmd(Command *c, String[] args, Option[] opts)
-	=> show_args_and_opts("root", c, args, opts);
-
-fn void? init_cmd(Command *c, String[] args, Option[] opts)
-	=> show_args_and_opts("init", c, args, opts);
-
-fn void? add_cmd(Command *c, String[] args, Option[] opts)
-	=> show_args_and_opts("add", c, args, opts);
-
-
-fn void? show_args_and_opts(String cmd, Command *c, String[] args, Option[] opts)
+fn void? greet(Ctx* ctx)
 {
-	io::printfn("Command: %s", cmd);
-	io::printn("--------");
-	io::printfn("Positional arguments:\n\t%s", args);
-	if (opts.len)
-	{
-		io::printfn("\nParsed flags:");
-		foreach (opt : opts) io::printf("\t%s", opt);
-	}
-	io::printf("\nUsage message:\n");
-	io::printf("--------------");
-	return c.usage();
+	ctx.println("%s, %s!", ctx.flag_string("greeting"), ctx.arg(0, "world"))!;
 }
 
-fn void main(String[] args) => @assert_leak()
+fn int main(String[] args)
 {
-	Command *root = command::new(use: "app [commands] [flags]", run: &root_cmd)
-	.describe("describe your command here")
-	.add_command(
-		command::new(use: "init [flags]", run: &init_cmd)
-		.add_flag({.shortopt = 'p', .desc = "path", .optarg = true})
-		.add_flag({.shortopt = 'n', .desc = "name", .optarg = true})
-		.describe("'init' your app with this command")
-	)
-	.add_command(
-		command::new(use: "add [flags] <name>", run: &add_cmd)
-		.add_flag({.shortopt = 'f', .longopt = "force"})
-		.describe("'add' something to your app")
-	);
+	Command* app = serp::app("hello", "1.0.0", "Says hello");
+	defer app.free();
 
-	defer root.free();
+	app.add(serp::cmd("greet", "Greet someone", &greet)
+		.usage_args("[name]")
+		.accepts(serp::max_args(1))
+		.flag(serp::string_flag('g', "greeting", "what to say", "Hello")));
 
-	root.execute(args)!!;
+	return app.execute(args);   // 0 ok, 1 command failed, 2 bad command line
 }
 ```
 
-See [source](src/serp/serp.c3).
+```
+$ hello greet -g Hi Bob
+Hi, Bob!
+$ hello gret
+Error: unknown command 'gret' for 'hello'
+
+Did you mean this?
+  greet
+```
+
+Or let serp create the project for you:
+
+```
+c3c build serp                                   # builds build/serp
+build/serp new myapp --serp-path /path/to/parent # parent folder of serp.c3l
+```
 
 ## Install
 
-Add the path to the `serp.c3l` folder to `dependency-search-paths` and
-`serp` to `dependencies` in your `project.json` file:
+Add the folder that *contains* `serp.c3l` to `dependency-search-paths` in your
+`project.json`, and add `serp` to the dependencies:
 
 ```json
 {
-    "dependency-search-paths": ["lib", "<path_to_serp.c3l_folder>"],
-    "dependencies": ["serp"]
+    "dependency-search-paths": [ "<folder containing serp.c3l>" ],
+    "dependencies": [ "serp" ]
 }
+```
+
+Then `import serp;` — that is the only import you need.
+
+## Concepts
+
+### Commands
+
+`serp::app(name, version, desc)` creates the root, `serp::cmd(name, desc, run)`
+creates a subcommand. Builders return the command, so they chain:
+
+| Builder | Purpose |
+|---|---|
+| `.describe(short, long)` | one-line and long description |
+| `.add(child)` | attach a subcommand (parent takes ownership) |
+| `.flag(Flag)` / `.persistent_flag(Flag)` | add a flag (persistent = inherited) |
+| `.aka("alias")` | alternative name |
+| `.accepts(ArgSpec)` | validate positional args |
+| `.usage_args("<file>...")` | shown in the usage line |
+| `.examples("...")` | shown in help |
+| `.grouped("Group")` | heading in the parent's command list |
+| `.hide()` / `.deprecate("msg")` | hide from help / print a warning |
+| `.before(fn)` / `.after(fn)` | hooks around `run` |
+| `.before_all(fn)` | hook for the command *and* all its subcommands |
+
+A command without `run` just shows its help. Freeing the root with `app.free()`
+releases the whole tree. Strings are borrowed: use literals or keep them alive.
+
+### Flags
+
+```c3
+serp::bool_flag('v', "verbose", "chatty");                 // switch
+serp::string_flag('o', "output", "file", "out.txt");       // with default
+serp::int_flag('p', "port", "port", "8080");               // validated integer
+Flag f = {.name = "host", .kind = STRING, .required = true, .env = "APP_HOST"};  // full control
+```
+
+`Flag` fields: `short_name`, `name`, `desc`, `kind` (`BOOL`, `STRING`, `INT`),
+`required`, `persistent`, `hidden`, `default_value`, `env`, `value_name`,
+`bind_bool`, `bind_int`.
+
+Read values in the run function through `Ctx`:
+
+```c3
+ctx.flag_bool("verbose");  ctx.flag_string("output");  ctx.flag_int("port");
+ctx.has("port");           // given explicitly?
+ctx.arg(0, "fallback");    ctx.args;   // positional arguments
+```
+
+Lookup order: command line, environment variable, default.
+
+### Argument validation
+
+`serp::no_args()`, `any_args()`, `min_args(n)`, `max_args(n)`, `exact_args(n)`,
+`range_args(lo, hi)`. A command with subcommands rejects unknown words as
+typos unless you set a validator.
+
+### Output and testing
+
+`app.out` / `app.err` redirect output (any `OutStream`, e.g. a `DString*`);
+`app.color = NEVER|ALWAYS|AUTO`. `app.execute_line("app serve -p 80")` runs a
+string, which makes command trees easy to test — see `src/test/serp_test.c3`.
+
+## Layout
+
+```
+src/serp/       the library (manifest.json points here)
+examples/demo/  small example app   (c3c run demo -- --help)
+tools/serp/     `serp new` scaffolder
+src/test/       tests               (c3c test)
 ```

@@ -1,12 +1,28 @@
 {
-	"authors": [ "Koni Marti <koni.marti@gmail.com>" ],
-	"version": "0.1.0",
+	"authors": [
+		"Koni Marti <koni.marti@gmail.com>"
+	],
+	"version": "0.8.0",
 	"output": "build",
-	"sources": [ "*", "src/test/**" ],
+	"sources": [
+		"src/serp/**",
+		"src/test/**"
+	],
 	"targets": {
+		"tests": {
+			"type": "test"
+		},
+		"demo": {
+			"type": "executable",
+			"sources": [
+				"examples/demo/**"
+			]
+		},
 		"serp": {
 			"type": "executable",
-			"sources": [ "src/serp/**" ]
+			"sources": [
+				"tools/serp/**"
+			]
 		}
 	}
 }
