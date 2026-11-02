@@ -295,3 +295,20 @@ fn void test_unicode_short_flags() @test => @assert_leak()
 	assert(app.execute_line("app -世") == 2);
 	assert(err.str_view().contains("flag -世 needs a value"));
 }
+
+fn void test_fail_and_add_at() @test => @assert_leak()
+{
+	Harness h;
+	h.init();
+	defer h.free();
+	h.app.add_at({"repo"}, serp::cmd("rm", "", &failing));
+	assert(h.app.execute_line("app repo rm") == 1);
+	String e = h.err.str_view();
+	assert(e.contains("Error: nothing to remove: x"));
+	assert(!e.contains("FAILED"));
+	h.err.clear();
+	assert(h.app.execute_line("app help nope") == 1);
+	assert(!h.err.str_view().contains("INVALID_ARGS"));
+}
+
+fn void? failing(Ctx* ctx) => ctx.fail("nothing to remove: %s", "x");

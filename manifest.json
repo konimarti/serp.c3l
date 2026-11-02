@@ -2,5 +2,12 @@
   "provides" : "serp",
   "version" : "0.8.0",
   "authors" : [ "Koni Marti <koni.marti@gmail.com>" ],
-  "sources" : [ "src/serp/**" ]
+  "sources" : [ "src/serp/**" ],
+  "targets" : {
+    "linux-x64" : {},
+    "linux-aarch64" : {},
+    "macos-x64" : {},
+    "macos-aarch64" : {},
+    "windows-x64" : {}
+  }
 }

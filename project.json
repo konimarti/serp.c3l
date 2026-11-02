@@ -10,7 +10,11 @@
 	],
 	"targets": {
 		"tests": {
-			"type": "test"
+			"type": "test",
+			"sources": [
+				"tools/serp/app/**",
+				"tools/serp/test/**"
+			]
 		},
 		"demo": {
 			"type": "executable",

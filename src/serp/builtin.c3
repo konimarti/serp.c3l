@@ -42,8 +42,7 @@ fn void? help_run(Ctx* ctx) @private
 		Command* sub = target.find_child(a);
 		if (!sub)
 		{
-			io::fprintfn(ctx.err, "Unknown help topic '%s'", a)!;
-			return INVALID_ARGS~;
+			return ctx.fail("unknown help topic '%s'", a);
 		}
 		target = sub;
 	}
@@ -59,8 +58,7 @@ fn void? completion_run(Ctx* ctx) @private
 		case "zsh": write_zsh_completion(root, ctx.out)!;
 		case "fish": write_fish_completion(root, ctx.out)!;
 		default:
-			io::fprintfn(ctx.err, "unsupported shell '%s' (use bash, zsh or fish)", ctx.args[0])!;
-			return INVALID_ARGS~;
+			return ctx.fail("unsupported shell '%s' (use bash, zsh or fish)", ctx.args[0]);
 	}
 }
 
@@ -72,7 +70,6 @@ fn void? docs_run(Ctx* ctx) @private
 		case "markdown": write_markdown(root, ctx.out)!;
 		case "man": write_man(root, ctx.out)!;
 		default:
-			io::fprintfn(ctx.err, "unsupported format '%s' (use markdown or man)", ctx.args[0])!;
-			return INVALID_ARGS~;
+			return ctx.fail("unsupported format '%s' (use markdown or man)", ctx.args[0]);
 	}
 }

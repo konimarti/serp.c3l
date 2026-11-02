@@ -194,7 +194,7 @@ fn int Command.execute(&self, String[] args) => @pool()
 
 	if (catch e = run_hooks(&ctx, cur))
 	{
-		(void)print_error(&ctx, "%s", e);
+		if (e != FAILED) (void)print_error(&ctx, "%s", e);
 		return EXIT_ERROR;
 	}
 	return EXIT_OK;

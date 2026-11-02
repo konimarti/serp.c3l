@@ -3,7 +3,8 @@ module serp;
 import std::collections::list;
 import std::io;
 
-faultdef INVALID_ARGS;
+// Returned by `Ctx.fail` once the message has been printed.
+faultdef FAILED;
 
 // Exit codes returned by `Command.execute`.
 const int EXIT_OK    = 0;

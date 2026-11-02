@@ -112,6 +112,16 @@ fn String Ctx.arg(&self, sz i, String fallback = "")
 	return i < self.args.len ? self.args[i] : fallback;
 }
 
+<*
+ Print `Error: <message>` to stderr and fail the command (exit code 1) without
+ the fault name being printed a second time: `return ctx.fail("no such file: %s", f);`
+*>
+fn void? Ctx.fail(&self, String format, args...) @format(1)
+{
+	print_error(self, format, ...args)!;
+	return FAILED~;
+}
+
 fn void? Ctx.print_help(&self) => write_help(self.cmd, self.out, self.color);
 
 fn void? Ctx.print(&self, String format, args...) @format(1)

@@ -97,6 +97,22 @@ fn Command* Command.add(&self, Command* child)
 	return self;
 }
 
+<*
+ Add a subcommand below the command found by following the `parent` names,
+ e.g. `root.add_at({"repo"}, child)` adds `repo <child>`. The parent must exist.
+*>
+fn Command* Command.add_at(&self, String[] parent, Command* child)
+{
+	Command* target = self;
+	foreach (name : parent)
+	{
+		target = target.find_child(name);
+		assert(target, "parent command not found");
+	}
+	target.add(child);
+	return self;
+}
+
 // ---- lookups ----
 
 fn bool Command.matches(&self, String s)
