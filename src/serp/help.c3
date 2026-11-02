@@ -19,21 +19,7 @@ fn void? write_help(Command* c, OutStream out, bool color) => @pool()
 	String text = c.long_desc.len ? c.long_desc : c.desc;
 	if (text.len) io::fprintfn(out, "%s\n", text)!;
 
-	io::fprintfn(out, "%sUsage:%s", b, r)!;
-	if (c.run || c.children.len() == 0)
-	{
-		io::fprint(out, "  ")!;
-		c.write_path(out)!;
-		if (visible_flag_count(c) > 0) io::fprint(out, " [flags]")!;
-		if (c.args_usage.len) io::fprintf(out, " %s", c.args_usage)!;
-		io::fprintn(out, "")!;
-	}
-	if (visible_child_count(c) > 0)
-	{
-		io::fprint(out, "  ")!;
-		c.write_path(out)!;
-		io::fprintn(out, " [command]")!;
-	}
+	write_usage(c, out, color)!;
 
 	if (c.aliases.len() > 0)
 	{
@@ -46,7 +32,8 @@ fn void? write_help(Command* c, OutStream out, bool color) => @pool()
 	if (c.example.len) io::fprintfn(out, "\n%sExamples:%s\n%s", b, r, c.example)!;
 
 	// commands, in groups (ungrouped first)
-	if (visible_child_count(c) > 0)
+	sz commands = visible_child_count(c);
+	if (commands > 0)
 	{
 		sz width = 0;
 		foreach (child : c.children) if (!child.hidden) width = math::max(width, child.name.len);
@@ -67,11 +54,9 @@ fn void? write_help(Command* c, OutStream out, bool color) => @pool()
 				if (!found)
 				{
 					found = true;
-					io::fprintfn(out, "\n%s%s%s%s", b, g.len ? g : "Available", " Commands:", r)!;
+					io::fprintfn(out, "\n%s%s Commands:%s", b, g.len ? g : "Available", r)!;
 				}
-				io::fprintf(out, "  %s", child.name)!;
-				pad(out, width - child.name.len + 3)!;
-				io::fprintn(out, child.desc)!;
+				io::fprintfn(out, "  %-*s   %s", (int)width, child.name, child.desc)!;
 			}
 		}
 	}
@@ -79,7 +64,7 @@ fn void? write_help(Command* c, OutStream out, bool color) => @pool()
 	write_flag_section(c, out, false, "Flags", b, r)!;
 	write_flag_section(c, out, true, "Global Flags", b, r)!;
 
-	if (visible_child_count(c) > 0)
+	if (commands > 0)
 	{
 		io::fprint(out, "\nUse \"")!;
 		c.write_path(out)!;
@@ -87,43 +72,62 @@ fn void? write_help(Command* c, OutStream out, bool color) => @pool()
 	}
 }
 
-fn void? write_flag_section(Command* c, OutStream out, bool inherited_section, String title, String b, String r) @local
+// The "Usage:" heading and its lines.
+fn void? write_usage(Command* c, OutStream out, bool color)
 {
-	// build labels first to align the descriptions
-	List {String} labels;
+	io::fprintfn(out, "%sUsage:%s", color ? BOLD : "", color ? RESET : "")!;
+	if (c.run || c.children.len() == 0)
+	{
+		io::fprint(out, "  ")!;
+		c.write_path(out)!;
+		if (visible_flag_count(c) > 0) io::fprint(out, " [flags]")!;
+		if (c.args_usage.len) io::fprintf(out, " %s", c.args_usage)!;
+		io::fprintn(out, "")!;
+	}
+	if (visible_child_count(c) > 0)
+	{
+		io::fprint(out, "  ")!;
+		c.write_path(out)!;
+		io::fprintn(out, " [command]")!;
+	}
+}
+
+fn void? write_flag_section(Command* c, OutStream out, bool inherited_section, String title, String b, String r) @private
+{
+	// the built-in flags, unless the user defined their own
+	Flag help = {.short_name = c.lookup_short('h') ? 0 : 'h', .name = "help", .desc = "help for this command"};
+	Flag version = {.name = "version", .desc = "version for this program"};
 	List {Flag*} flags;
-	labels.tinit(8);
 	flags.tinit(8);
-	sz width;
 	if (!inherited_section)
 	{
-		// built-in flags, unless the user defined their own
-		if (!c.lookup_long("help")) { labels.push(c.lookup_short('h') ? "    --help" : "-h, --help"); flags.push(null); width = math::max(width, (sz)10); }
-		if (c.parent == null && c.version.len && !c.lookup_long("version")) { labels.push("    --version"); flags.push(null); width = math::max(width, (sz)13); }
+		if (!c.lookup_long("help")) flags.push(&help);
+		if (c.parent == null && c.version.len && !c.lookup_long("version")) flags.push(&version);
 	}
 	c.@each_flag(; Flag* f, bool inherited)
 	{
-		if (!f.hidden && inherited == inherited_section)
-		{
-			String l = flag_label(f);
-			labels.push(l);
-			flags.push(f);
-			width = math::max(width, l.len);
-		}
+		if (!f.hidden && inherited == inherited_section) flags.push(f);
 	};
 	if (flags.is_empty()) return;
+
+	// align the descriptions
+	sz width;
+	foreach (f : flags) width = math::max(width, flag_label(f).len);
 	io::fprintfn(out, "\n%s%s:%s", b, title, r)!;
-	foreach (i, f : flags)
+	foreach (f : flags)
 	{
-		io::fprintf(out, "  %s", labels[i])!;
-		pad(out, width - labels[i].len + 3)!;
-		if (!f)
-		{
-			io::fprintn(out, labels[i].ends_with("help") ? "help for this command" : "version for this program")!;
-			continue;
-		}
-		io::fprint(out, f.desc)!;
+		io::fprintf(out, "  %-*s   %s", (int)width, flag_label(f), f.desc)!;
 		if (f.default_value.len && f.kind != BOOL) io::fprintf(out, " (default %s)", f.default_value)!;
+		if (f.choices.len)
+		{
+			io::fprint(out, " (")!;
+			foreach (i, choice : f.choices)
+			{
+				if (i) io::fprint(out, "|")!;
+				io::fprint(out, choice)!;
+			}
+			io::fprint(out, ")")!;
+		}
 		if (f.env.len) io::fprintf(out, " [$%s]", f.env)!;
 		if (f.required) io::fprint(out, " (required)")!;
 		io::fprintn(out, "")!;
@@ -151,11 +155,6 @@ fn String flag_label(Flag* f) @private
 		s.appendf(" %s", vn)!!;
 	}
 	return s.str_view();
-}
-
-fn void? pad(OutStream out, sz n) @private
-{
-	for (sz i = 0; i < n; i++) io::fprint(out, " ")!;
 }
 
 fn sz visible_child_count(Command* c) @private

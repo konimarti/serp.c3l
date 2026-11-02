@@ -1,6 +1,6 @@
 # Ideas
 
-- Typed positional args (`ctx.arg_int(0)`), enum/choice validated flags
+- Typed positional args (`ctx.arg_int(0)`)
 - Flag groups: mutually exclusive / required together
 - Auto env prefix (`MYAPP_PORT` for `--port`) via `app.env_prefix`
 - Dynamic shell completion (`__complete`) for flag values and file names

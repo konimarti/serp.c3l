@@ -18,7 +18,7 @@ subcommands in [C3](https://c3-lang.org), inspired by Go's
   environment variable fallback, binding to variables
 - Positional argument validators (`exact_args`, `min_args`, ...)
 - Automatic `--help`/`-h`, `help <cmd>`, `--version`, colored help on terminals
-- "Did you mean ...?" for mistyped commands and flags
+- "Did you mean ...?" for mistyped commands and flags, usage shown with errors
 - Shell completion for bash, zsh and fish (`app completion bash`)
 - Markdown and man page generation (`app docs markdown|man`)
 - Meaningful exit codes, errors on stderr, leak free (tested with `@assert_leak`)
@@ -64,7 +64,7 @@ Or let serp create the project for you:
 
 ```
 c3c build serp                                   # builds build/serp
-build/serp new myapp --serp-path /path/to/parent # parent folder of serp.c3l
+build/serp new myapp [--serp-path ..]            # folder of serp.c3l, relative to myapp
 ```
 
 ## Install
@@ -115,18 +115,26 @@ Flag f = {.name = "host", .kind = STRING, .required = true, .env = "APP_HOST"}; 
 ```
 
 `Flag` fields: `short_name`, `name`, `desc`, `kind` (`BOOL`, `STRING`, `INT`),
-`required`, `persistent`, `hidden`, `default_value`, `env`, `value_name`,
-`bind_bool`, `bind_int`.
+`required`, `persistent`, `hidden`, `default_value`, `choices`, `env`,
+`value_name`, `bind_bool`, `bind_int`.
+
+`choices` restricts a flag to a list of values (`.choices = {"json", "yaml"}`);
+values from the command line, the environment and defaults are all validated.
+Bool flags take `--verbose`, `--verbose=false` or `--no-verbose` (not
+`--verbose false`).
 
 Read values in the run function through `Ctx`:
 
 ```c3
 ctx.flag_bool("verbose");  ctx.flag_string("output");  ctx.flag_int("port");
 ctx.has("port");           // given explicitly?
+ctx.flag_strings("include");   // every value of a repeated flag: -I a -I b
 ctx.arg(0, "fallback");    ctx.args;   // positional arguments
 ```
 
-Lookup order: command line, environment variable, default.
+Lookup order: command line, environment variable (if not empty), default. A flag
+given twice keeps the last value; `flag_strings` returns all of them (for a bool
+flag `.len` counts `-vvv`). Bindings are only written when the flag has a value.
 
 ### Argument validation
 

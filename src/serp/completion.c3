@@ -7,8 +7,9 @@ import std::io;
 fn void? write_bash_completion(Command* root, OutStream out) => @pool()
 {
 	String n = root.name;
+	String id = fn_ident(n);
 	io::fprintfn(out, "# bash completion for %s", n)!;
-	io::fprintfn(out, "_%s_complete() {", fn_ident(n))!;
+	io::fprintfn(out, "_%s_complete() {", id)!;
 	io::fprintn(out, "  local cur=\"${COMP_WORDS[COMP_CWORD]}\" path w opts=\"\"")!;
 	io::fprintfn(out, "  path=\"%s\"", n)!;
 	io::fprintn(out, "  for w in \"${COMP_WORDS[@]:1:COMP_CWORD-1}\"; do")!;
@@ -22,10 +23,10 @@ fn void? write_bash_completion(Command* root, OutStream out) => @pool()
 	io::fprintn(out, "  esac")!;
 	io::fprintn(out, "  COMPREPLY=( $(compgen -W \"$opts\" -- \"$cur\") )")!;
 	io::fprintn(out, "}")!;
-	io::fprintfn(out, "complete -F _%s_complete %s", fn_ident(n), n)!;
+	io::fprintfn(out, "complete -F _%s_complete %s", id, n)!;
 }
 
-fn void? write_zsh_completion(Command* root, OutStream out) => @pool()
+fn void? write_zsh_completion(Command* root, OutStream out)
 {
 	io::fprintfn(out, "#compdef %s", root.name)!;
 	io::fprintn(out, "autoload -U +X bashcompinit && bashcompinit")!;
@@ -37,21 +38,19 @@ fn void? bash_transitions(Command* c, OutStream out) @local
 	foreach (child : c.children)
 	{
 		if (child.hidden) continue;
-		io::fprint(out, "      \"")!;
-		c.write_path(out)!;
-		io::fprintf(out, ":%s\") path=\"", child.name)!;
-		child.write_path(out)!;
-		io::fprintn(out, "\";;")!;
-		foreach (a : child.aliases)
-		{
-			io::fprint(out, "      \"")!;
-			c.write_path(out)!;
-			io::fprintf(out, ":%s\") path=\"", a)!;
-			child.write_path(out)!;
-			io::fprintn(out, "\";;")!;
-		}
+		bash_transition(c, child, child.name, out)!;
+		foreach (a : child.aliases) bash_transition(c, child, a, out)!;
 		bash_transitions(child, out)!;
 	}
+}
+
+fn void? bash_transition(Command* c, Command* child, String word, OutStream out) @local
+{
+	io::fprint(out, "      \"")!;
+	c.write_path(out)!;
+	io::fprintf(out, ":%s\") path=\"", word)!;
+	child.write_path(out)!;
+	io::fprintn(out, "\";;")!;
 }
 
 fn void? bash_options(Command* c, OutStream out) @local
@@ -66,13 +65,13 @@ fn void? bash_options(Command* c, OutStream out) @local
 		foreach (a : child.aliases) io::fprintf(out, "%s ", a)!;
 	}
 	io::fprint(out, "--help ")!;
-	if (c.root().version.len && c.parent == null) io::fprint(out, "--version ")!;
+	if (c.parent == null && c.version.len) io::fprint(out, "--version ")!;
 	c.@each_flag(; Flag* f, bool inherited)
 	{
 		if (!f.hidden)
 		{
-			if (f.name.len) io::fprintf(out, "--%s ", f.name)!!;
-			if (f.short_name) io::fprintf(out, "-%c ", f.short_name)!!;
+			if (f.name.len) io::fprintf(out, "--%s ", f.name)!;
+			if (f.short_name) io::fprintf(out, "-%c ", f.short_name)!;
 		}
 	};
 	io::fprintn(out, "\";;")!;
@@ -126,11 +125,11 @@ fn void? fish_command(Command* root, Command* c, OutStream out) @local
 	{
 		if (!f.hidden)
 		{
-			io::fprintf(out, "complete -c %s -n \"%s\"", root.name, fcond.str_view())!!;
-			if (f.short_name) io::fprintf(out, " -s %c", f.short_name)!!;
-			if (f.name.len) io::fprintf(out, " -l %s", f.name)!!;
-			if (f.kind != BOOL) io::fprint(out, " -r")!!;
-			io::fprintfn(out, " -d '%s'", quote(f.desc))!!;
+			io::fprintf(out, "complete -c %s -n \"%s\"", root.name, fcond.str_view())!;
+			if (f.short_name) io::fprintf(out, " -s %c", f.short_name)!;
+			if (f.name.len) io::fprintf(out, " -l %s", f.name)!;
+			if (f.kind != BOOL) io::fprint(out, " -r")!;
+			io::fprintfn(out, " -d '%s'", quote(f.desc))!;
 		}
 	};
 	foreach (child : c.children) fish_command(root, child, out)!;
@@ -148,6 +147,6 @@ fn String quote(String s) @local
 fn String fn_ident(String s) @local
 {
 	char[] buf = mem::talloc_array(char, s.len);
-	foreach (i, ch : s) buf[i] = (ch.is_alnum()) ? ch : '_';
+	foreach (i, ch : s) buf[i] = ch.is_alnum() ? ch : '_';
 	return (String)buf;
 }

@@ -14,20 +14,20 @@ fn void Command.prepare(&self)
 
 	if (!self.find_child("help"))
 	{
-		self.add(cmd("help", "Help about any command", &help_run)
+		self.add(cmd("help", "Help about any command", &help_run, self.allocator)
 			.usage_args("[command]...")
 			.grouped("Additional"));
 	}
 	if (!self.no_completion && !self.find_child("completion"))
 	{
-		self.add(cmd("completion", "Generate a shell completion script", &completion_run)
+		self.add(cmd("completion", "Generate a shell completion script", &completion_run, self.allocator)
 			.usage_args("<bash|zsh|fish>")
 			.accepts(exact_args(1))
 			.grouped("Additional"));
 	}
 	if (!self.find_child("docs"))
 	{
-		self.add(cmd("docs", "Generate documentation for this program", &docs_run)
+		self.add(cmd("docs", "Generate documentation for this program", &docs_run, self.allocator)
 			.usage_args("<markdown|man>")
 			.accepts(exact_args(1))
 			.hide());
@@ -47,7 +47,7 @@ fn void? help_run(Ctx* ctx) @private
 		}
 		target = sub;
 	}
-	write_help(target, ctx.out, false)!;
+	write_help(target, ctx.out, ctx.color)!;
 }
 
 fn void? completion_run(Ctx* ctx) @private

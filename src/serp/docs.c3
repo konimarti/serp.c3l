@@ -7,16 +7,13 @@ import std::io;
 <*
  Write reference documentation for the whole command tree as markdown.
 *>
-fn void? write_markdown(Command* c, OutStream out) => @pool()
+fn void? write_markdown(Command* c, OutStream out)
 {
 	io::fprint(out, "## ")!;
 	c.write_path(out)!;
 	io::fprintn(out, "\n")!;
-	String text = c.long_desc.len ? c.long_desc : c.desc;
-	if (text.len) io::fprintfn(out, "%s\n", text)!;
-
 	io::fprintn(out, "```\n")!;
-	write_help_plain(c, out)!;
+	write_help(c, out, false)!;
 	io::fprintn(out, "```\n")!;
 
 	if (c.parent)
@@ -61,13 +58,13 @@ fn void? man_command(Command* c, OutStream out) @local
 	{
 		if (!f.hidden && !inherited)
 		{
-			io::fprintn(out, ".TP")!!;
-			io::fprint(out, ".B ")!!;
-			if (f.short_name) io::fprintf(out, "\\-%c", f.short_name)!!;
-			if (f.short_name && f.name.len) io::fprint(out, ", ")!!;
-			if (f.name.len) io::fprintf(out, "\\-\\-%s", f.name)!!;
-			io::fprintn(out, "")!!;
-			io::fprintn(out, roff(f.desc))!!;
+			io::fprintn(out, ".TP")!;
+			io::fprint(out, ".B ")!;
+			if (f.short_name) io::fprintf(out, "\\-%c", f.short_name)!;
+			if (f.short_name && f.name.len) io::fprint(out, ", ")!;
+			if (f.name.len) io::fprintf(out, "\\-\\-%s", f.name)!;
+			io::fprintn(out, "")!;
+			io::fprintn(out, roff(f.desc))!;
 		}
 	};
 	foreach (child : c.children)
@@ -76,7 +73,9 @@ fn void? man_command(Command* c, OutStream out) @local
 	}
 }
 
-fn String roff(String s) @local => s.treplace("-", "\\-");
-
-// help text without ANSI codes (always plain)
-fn void? write_help_plain(Command* c, OutStream out) @local => write_help(c, out, false);
+// escapes `\` and `-`, and protects a leading `.` or `'` from being read as a request
+fn String roff(String s) @local
+{
+	String r = s.treplace("\\", "\\e").treplace("-", "\\-");
+	return r.starts_with(".") || r.starts_with("'") ? string::tformat("\\&%s", r) : r;
+}

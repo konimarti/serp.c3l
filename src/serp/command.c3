@@ -1,6 +1,5 @@
 module serp;
 
-import std::collections::list;
 import std::io;
 
 <*
@@ -123,25 +122,13 @@ fn Command* Command.root(&self)
 // Finds a flag visible from this command: its own and persistent ones of the ancestors.
 fn Flag* Command.lookup_long(&self, String name)
 {
-	for (Command* c = self; c; c = c.parent)
-	{
-		foreach (&f : c.flags)
-		{
-			if ((c == self || f.persistent) && f.name.len && f.name == name) return f;
-		}
-	}
+	self.@each_flag(; Flag* f, bool inherited) { if (f.name.len && f.name == name) return f; };
 	return null;
 }
 
 fn Flag* Command.lookup_short(&self, char ch)
 {
-	for (Command* c = self; c; c = c.parent)
-	{
-		foreach (&f : c.flags)
-		{
-			if ((c == self || f.persistent) && f.short_name == ch) return f;
-		}
-	}
+	self.@each_flag(; Flag* f, bool inherited) { if (f.short_name == ch) return f; };
 	return null;
 }
 
@@ -174,6 +161,3 @@ fn void? Command.write_path(&self, OutStream out)
 	}
 	io::fprint(out, self.name)!;
 }
-
-// Does this command or one of its subcommands (recursively) offer something to run?
-fn bool Command.is_runnable(&self) => self.run != null;

@@ -28,12 +28,14 @@ fn sz edit_distance(String a, String b) @private => @pool()
 fn bool close_enough(String typed, String candidate) @private
 {
 	if (candidate.len == 0) return false;
-	sz limit = typed.len <= 4 ? 1 : 2;
+	if (typed == candidate) return false;
 	if (candidate.starts_with(typed) && typed.len >= 2) return true;
-	return edit_distance(typed, candidate) <= limit;
+	sz limit = typed.len <= 4 ? 1 : 2;
+	sz diff = typed.len > candidate.len ? typed.len - candidate.len : candidate.len - typed.len;
+	return diff <= limit && edit_distance(typed, candidate) <= limit;
 }
 
-// Closest subcommand name (temp string or literal), empty if nothing is close.
+// First subcommand whose name or alias is close to `typed`, empty if there is none.
 fn String command_suggestion(Command* cur, String typed) @private
 {
 	foreach (child : cur.children)

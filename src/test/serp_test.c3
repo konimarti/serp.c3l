@@ -2,6 +2,7 @@ module serp_test;
 
 import serp;
 import std::io;
+import std::os::env;
 
 int ran;
 String last_arg;
@@ -157,4 +158,114 @@ fn void test_bindings_and_defaults() @test => @assert_leak()
 	assert(verbose && port == 7);
 	assert(app.execute_line("app --port 5") == 0);
 	assert(port == 5);
+}
+
+fn void test_repeat_choices_negation() @test => @assert_leak()
+{
+	Command* app = serp::app("app");
+	defer app.free();
+	DString err = dstring::new(mem);
+	defer err.free();
+	app.err = &err;
+	app.flag(serp::string_flag('I', "include"));
+	app.flag({.name = "format", .kind = STRING, .choices = {"json", "yaml"}});
+	app.flag({.name = "color", .default_value = "true"});
+	app.flag(serp::bool_flag('v', "verbose"));
+	app.run = fn void?(Ctx* ctx)
+	{
+		if (!ctx.has("include")) return;
+		String[] inc = ctx.flag_strings("include");
+		assert(inc.len == 2 && inc[0] == "a" && inc[1] == "b");
+		assert(ctx.flag_string("include") == "b");
+		assert(ctx.flag_strings("verbose").len == 3);
+		assert(!ctx.flag_bool("color"));
+	};
+	assert(app.execute_line("app -I a --include=b -vvv --no-color") == 0);
+	assert(app.execute_line("app --format xml") == 2);
+	assert(err.str_view().contains("expected one of: json, yaml"));
+	assert(app.execute_line("app --format yaml") == 0);
+	assert(app.execute_line("app --no-format x") == 2);   // only bool flags can be negated
+}
+
+fn void test_env_and_defaults_validated() @test => @assert_leak()
+{
+	Harness h;
+	h.init();
+	defer h.free();
+	defer env::clear_var("SERP_TEST_PORT");
+	defer env::clear_var("SERP_TEST_TOK");
+	h.app.add(serp::cmd("env", "", &record)
+		.flag({.name = "port", .kind = INT, .env = "SERP_TEST_PORT"})
+		.flag({.name = "tok", .required = true, .env = "SERP_TEST_TOK"}));
+	env::set_var("SERP_TEST_PORT", "xyz");
+	env::set_var("SERP_TEST_TOK", "");
+	assert(h.app.execute_line("app env") == 2);           // empty env does not satisfy `required`
+	env::set_var("SERP_TEST_TOK", "t");
+	assert(h.app.execute_line("app env") == 2);           // invalid integer from the environment
+	assert(h.err.str_view().contains("invalid value 'xyz'"));
+	env::set_var("SERP_TEST_PORT", "9");
+	assert(h.app.execute_line("app env") == 0);
+	assert(last_port == 9);
+}
+
+fn void test_bindings_keep_value_when_absent() @test => @assert_leak()
+{
+	bool verbose = true;
+	Command* app = serp::app("app");
+	defer app.free();
+	app.flag({.name = "verbose", .bind_bool = &verbose});
+	app.run = &record;
+	assert(app.execute_line("app") == 0);
+	assert(verbose);
+	assert(app.execute_line("app --verbose=false") == 0);
+	assert(!verbose);
+}
+
+int hooks_seen;
+
+fn void? count_hook(Ctx* ctx)
+{
+	hooks_seen++;
+}
+
+fn void test_deep_hooks_and_usage() @test => @assert_leak()
+{
+	Command* app = serp::app("app");
+	defer app.free();
+	DString err = dstring::new(mem);
+	defer err.free();
+	app.err = &err;
+	app.before_all(&count_hook);
+	Command* cur = app;
+	for (int i = 0; i < 20; i++)
+	{
+		Command* next = serp::cmd("n", "", &record);
+		cur.add(next);
+		cur = next;
+	}
+	hooks_seen = 0;
+	assert(app.execute_line(string::tformat("app %s", "n n n n n n n n n n n n n n n n n n n n")) == 0);
+	assert(hooks_seen == 1);
+	// usage is shown with the error; a word after `--` is never a command suggestion
+	assert(app.execute_line("app -- n") == 2);
+	assert(err.str_view().contains("Usage:"));
+	assert(!err.str_view().contains("Did you mean"));
+}
+
+fn void test_docs_no_duplicate_and_man_escape() @test => @assert_leak()
+{
+	Command* app = serp::app("app", "1.0", ".dot \\ back");
+	defer app.free();
+	DString out = dstring::new(mem);
+	defer out.free();
+	app.out = &out;
+	app.add(serp::cmd("x", "", &record));
+	assert(app.execute_line("app docs man") == 0);
+	assert(out.str_view().contains("\\&.dot \\e back"));
+	out.clear();
+	app.desc = "unique-description";
+	assert(app.execute_line("app docs markdown") == 0);
+	String o = out.str_view();
+	sz first = o.index_of("unique-description")!!;
+	assert(!o[first + 1..].contains("unique-description"));
 }

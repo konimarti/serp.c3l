@@ -3,14 +3,7 @@ module serp;
 import std::collections::list;
 import std::io;
 
-faultdef
-	UNKNOWN_FLAG,
-	UNKNOWN_COMMAND,
-	MISSING_VALUE,
-	UNEXPECTED_VALUE,
-	INVALID_VALUE,
-	REQUIRED_FLAG,
-	INVALID_ARGS;
+faultdef INVALID_ARGS;
 
 // Exit codes returned by `Command.execute`.
 const int EXIT_OK    = 0;
@@ -27,11 +20,13 @@ enum FlagKind : char
 {
 	BOOL,   // switch, takes no value: `--verbose`
 	STRING, // `--name foo`, `--name=foo`, `-nfoo`
-	INT,    // like STRING but validated as an integer
+	INT,    // like STRING but validated as an integer (`choices` also apply)
 }
 
 <*
  Describes a flag. All strings must outlive the command (use literals).
+ A flag given several times keeps the last value for `flag_string`; use
+ `flag_strings` to get all of them (`-I a -I b`). `--no-NAME` turns off a bool flag.
 
  `{.short_name = 'p', .name = "port", .kind = INT, .default_value = "8080"}`
 *>
@@ -45,9 +40,11 @@ struct Flag
 	bool     persistent;    // also valid in every subcommand
 	bool     hidden;        // do not list in help
 	String   default_value; // used if the flag was not given
+	String[] choices;       // if not empty, the only accepted values
 	String   env;           // environment variable used as fallback
 	String   value_name;    // placeholder in help, default "string"/"int"
-	// Optional bindings, written when the flag is present (after parsing).
+	// Optional bindings, written after parsing when the flag has a value
+	// (given, from `env` or `default_value`); otherwise left untouched.
 	bool*    bind_bool;
 	long*    bind_int;
 }
@@ -146,4 +143,6 @@ struct Ctx
 	List {Parsed} parsed; // temp allocated, valid during the run
 	OutStream     out;
 	OutStream     err;
+	bool          color;     // colorize `out`
+	bool          err_color; // colorize `err`
 }

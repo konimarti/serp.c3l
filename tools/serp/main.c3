@@ -46,6 +46,14 @@ fn void? new_project(Ctx* ctx) => @pool()
 {
 	String name = ctx.arg(0);
 	String serp_path = ctx.flag_string("serp-path");
+	foreach (ch : name)
+	{
+		if (!ch.is_alnum() && ch != '-' && ch != '_')
+		{
+			io::fprintfn(ctx.err, "invalid project name '%s': use letters, digits, '-' and '_'", name)!;
+			return serp::INVALID_ARGS~;
+		}
+	}
 	if (file::exists(name))
 	{
 		io::fprintfn(ctx.err, "'%s' already exists", name)!;
@@ -53,7 +61,7 @@ fn void? new_project(Ctx* ctx) => @pool()
 	}
 	path::mkdir(string::tformat("%s/src", name), true)!;
 	String project = string::tformat(PROJECT_TEMPLATE, serp_path, name);
-	String main_c3 = string::tformat(MAIN_TEMPLATE, name.replace(tmem, "-", "_"), name);
+	String main_c3 = string::tformat(MAIN_TEMPLATE, name.treplace("-", "_"), name);
 	file::save(string::tformat("%s/project.json", name), project)!;
 	file::save(string::tformat("%s/src/main.c3", name), main_c3)!;
 	ctx.println("created %s/\n  cd %s && c3c run", name, name)!;
@@ -67,7 +75,7 @@ fn int main(String[] args)
 	app.add(serp::cmd("new", "Create a new project using serp", &new_project)
 		.usage_args("<name>")
 		.accepts(serp::exact_args(1))
-		.flag(serp::string_flag(0, "serp-path", "folder that contains the serp.c3l directory", "."))
+		.flag(serp::string_flag(0, "serp-path", "folder that contains the serp.c3l directory, relative to the new project", ".."))
 		.examples("  serp new myapp --serp-path ~/src"));
 
 	return app.execute(args);

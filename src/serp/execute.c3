@@ -24,9 +24,14 @@ fn int Command.execute(&self, String[] args) => @pool()
 	OutStream err = io::stderr();
 	if (self.out) out = self.out;
 	if (self.err) err = self.err;
-	bool color = self.use_color();
 
-	Ctx ctx = {.cmd = self, .out = out, .err = err};
+	Ctx ctx = {
+		.cmd = self,
+		.out = out,
+		.err = err,
+		.color = color_for(self, false),
+		.err_color = color_for(self, true),
+	};
 	ctx.parsed.tinit(8);
 	List {String} pos;
 	pos.tinit(8);
@@ -49,6 +54,7 @@ fn int Command.execute(&self, String[] args) => @pool()
 				if (sub)
 				{
 					cur = sub;
+					ctx.cmd = sub;
 					continue;
 				}
 			}
@@ -64,7 +70,7 @@ fn int Command.execute(&self, String[] args) => @pool()
 
 		if (a[1] == '-')
 		{
-			// --long, --long=value, --long value
+			// --long, --long=value, --long value, --no-long
 			String name = a[2..];
 			String value;
 			bool has_value;
@@ -75,25 +81,34 @@ fn int Command.execute(&self, String[] args) => @pool()
 				has_value = true;
 			}
 			Flag* f = cur.lookup_long(name);
+			if (!f && !has_value && name.starts_with("no-"))
+			{
+				Flag* positive = cur.lookup_long(name[3..]);
+				if (positive && positive.kind == BOOL)
+				{
+					ctx.parsed.push({positive, "false"});
+					continue;
+				}
+			}
 			if (!f)
 			{
 				if (name == "help") { want_help = true; continue; }
 				if (name == "version" && self.version.len) { want_version = true; continue; }
-				return unknown_flag(cur, err, color, string::tformat("--%s", name), flag_suggestion(cur, name));
+				return unknown_flag(&ctx, string::tformat("--%s", name), flag_suggestion(cur, name));
 			}
 			if (f.kind == BOOL)
 			{
-				if (has_value && !is_bool_text(value))
+				if (has_value && !(is_true(value) || is_false(value)))
 				{
-					return usage_error(cur, err, color, "flag --%s takes no value (got '%s')", name, value);
+					return usage_error(&ctx, "flag --%s takes no value (got '%s')", name, value);
 				}
 			}
 			else if (!has_value)
 			{
-				if (i + 1 >= args.len) return usage_error(cur, err, color, "flag --%s needs a value", name);
+				if (i + 1 >= args.len) return usage_error(&ctx, "flag --%s needs a value", name);
 				value = args[++i];
 			}
-			if (!store(&ctx, f, value, cur, err, color)) return EXIT_USAGE;
+			if (!store(&ctx, f, value)) return EXIT_USAGE;
 			continue;
 		}
 
@@ -106,7 +121,7 @@ fn int Command.execute(&self, String[] args) => @pool()
 			if (!f)
 			{
 				if (ch == 'h') { want_help = true; continue; }
-				return unknown_flag(cur, err, color, string::tformat("-%c", ch), "");
+				return unknown_flag(&ctx, string::tformat("-%c", ch), "");
 			}
 			if (f.kind == BOOL)
 			{
@@ -125,24 +140,23 @@ fn int Command.execute(&self, String[] args) => @pool()
 			}
 			else
 			{
-				return usage_error(cur, err, color, "flag -%c needs a value", ch);
+				return usage_error(&ctx, "flag -%c needs a value", ch);
 			}
-			if (!store(&ctx, f, value, cur, err, color)) return EXIT_USAGE;
+			if (!store(&ctx, f, value)) return EXIT_USAGE;
 			break;
 		}
 	}
 
-	ctx.cmd = cur;
 	ctx.args = pos.array_view();
 
 	if (want_help)
 	{
-		if (catch write_help(cur, out, color)) return EXIT_ERROR;
+		if (catch write_help(cur, ctx.out, ctx.color)) return EXIT_ERROR;
 		return EXIT_OK;
 	}
 	if (want_version)
 	{
-		if (catch io::fprintfn(out, "%s version %s", self.name, self.version)) return EXIT_ERROR;
+		if (catch io::fprintfn(ctx.out, "%s version %s", self.name, self.version)) return EXIT_ERROR;
 		return EXIT_OK;
 	}
 
@@ -150,33 +164,34 @@ fn int Command.execute(&self, String[] args) => @pool()
 	if (cur.children.len() > 0 && pos.len() > 0 && (!cur.run || cur.args.kind == DEFAULT))
 	{
 		String sug = command_suggestion(cur, pos[0]);
-		String path = cur.path_string();
+		String path = path_of(cur);
 		if (sug.len)
 		{
-			return usage_error(cur, err, color, "unknown command '%s' for '%s'\n\nDid you mean this?\n  %s", pos[0], path, sug);
+			return usage_error(&ctx, "unknown command '%s' for '%s'\n\nDid you mean this?\n  %s", pos[0], path, sug);
 		}
-		return usage_error(cur, err, color, "unknown command '%s' for '%s'", pos[0], path);
+		return usage_error(&ctx, "unknown command '%s' for '%s'", pos[0], path);
 	}
 
 	// nothing to run: show the help instead
 	if (!cur.run)
 	{
-		if (catch write_help(cur, out, color)) return EXIT_ERROR;
+		if (catch write_help(cur, ctx.out, ctx.color)) return EXIT_ERROR;
 		return EXIT_OK;
 	}
 
-	if (!check_args(cur, pos.len(), err, color)) return EXIT_USAGE;
-	if (!check_required(&ctx, cur, err, color)) return EXIT_USAGE;
-	apply_bindings(&ctx, cur);
+	if (!check_args(&ctx)) return EXIT_USAGE;
+	if (!check_flags(&ctx)) return EXIT_USAGE;
+	apply_bindings(&ctx);
 
+	// failing to write a notice must not abort the program
 	if (cur.deprecated.len)
 	{
-		io::fprintfn(err, "Command '%s' is deprecated: %s", cur.path_string(), cur.deprecated)!!;
+		(void)io::fprintfn(ctx.err, "Command '%s' is deprecated: %s", path_of(cur), cur.deprecated);
 	}
 
 	if (catch e = run_hooks(&ctx, cur))
 	{
-		io::fprintfn(err, "%sError:%s %s", color ? "\e[1;31m" : "", color ? "\e[0m" : "", e)!!;
+		(void)print_error(&ctx, "%s", e);
 		return EXIT_ERROR;
 	}
 	return EXIT_OK;
@@ -193,41 +208,60 @@ fn int Command.execute_line(&self, String line) => @pool()
 
 // ---- internals ----
 
+// persistent pre-run hooks, outermost first
+fn void? run_persistent(Ctx* ctx, Command* c) @private
+{
+	if (c.parent) run_persistent(ctx, c.parent)!;
+	if (c.persistent_pre_run) c.persistent_pre_run(ctx)!;
+}
+
 fn void? run_hooks(Ctx* ctx, Command* cur) @private
 {
-	// persistent pre-run hooks, outermost first
-	Command*[16] chain;
-	sz n;
-	for (Command* c = cur; c && n < chain.len; c = c.parent) chain[n++] = c;
-	for (sz i = n - 1; i >= 0; i--)
-	{
-		if (chain[i].persistent_pre_run) chain[i].persistent_pre_run(ctx)!;
-	}
+	run_persistent(ctx, cur)!;
 	if (cur.pre_run) cur.pre_run(ctx)!;
 	cur.run(ctx)!;
 	if (cur.post_run) cur.post_run(ctx)!;
 }
 
-fn bool is_bool_text(String s) @private
-	=> s == "true" || s == "false" || s == "1" || s == "0" || s == "yes" || s == "no" || s == "on" || s == "off";
-
-fn bool store(Ctx* ctx, Flag* f, String value, Command* cur, OutStream err, bool color) @private
+// Empty if `v` is acceptable for the flag, else what is wrong with it.
+fn String value_problem(Flag* f, String v) @private
 {
+	if (f.kind == BOOL) return "";
 	if (f.kind == INT)
 	{
-		if (catch value.to_long())
+		if (catch v.to_long()) return "expected an integer";
+	}
+	if (f.choices.len)
+	{
+		DString s = dstring::temp();
+		s.append_string("expected one of: ");
+		foreach (i, c : f.choices)
 		{
-			usage_error(cur, err, color, "invalid value '%s' for %s: expected an integer", value, flag_display(f));
-			return false;
+			if (v == c) return "";
+			if (i) s.append_string(", ");
+			s.append_string(c);
 		}
+		return s.str_view();
+	}
+	return "";
+}
+
+fn bool store(Ctx* ctx, Flag* f, String value) @private
+{
+	String problem = value_problem(f, value);
+	if (problem.len)
+	{
+		usage_error(ctx, "invalid value '%s' for %s: %s", value, flag_display(f), problem);
+		return false;
 	}
 	ctx.parsed.push({f, value});
 	return true;
 }
 
-fn bool check_args(Command* cur, sz n, OutStream err, bool color) @private
+fn bool check_args(Ctx* ctx) @private
 {
-	ArgSpec s = cur.args;
+	ArgSpec s = ctx.cmd.args;
+	sz n = ctx.args.len;
 	String problem;
 	switch (s.kind)
 	{
@@ -240,62 +274,74 @@ fn bool check_args(Command* cur, sz n, OutStream err, bool color) @private
 		case RANGE: if (n < s.min || n > s.max) problem = string::tformat("accepts between %d and %d arg(s), received %d", s.min, s.max, n);
 	}
 	if (!problem.len) return true;
-	usage_error(cur, err, color, "%s", problem);
+	usage_error(ctx, "%s", problem);
 	return false;
 }
 
-fn bool check_required(Ctx* ctx, Command* cur, OutStream err, bool color) @private
+// Required flags are set, and values from the environment or defaults are valid.
+fn bool check_flags(Ctx* ctx) @private
 {
 	bool ok = true;
-	cur.@each_flag(; Flag* f, bool inherited)
+	ctx.cmd.@each_flag(; Flag* f, bool inherited)
 	{
-		if (ok && f.required && !ctx.is_set(f))
+		if (ok)
 		{
-			usage_error(cur, err, color, "required flag %s not set", flag_display(f));
-			ok = false;
+			String v = flag_value(ctx, f);
+			String problem = v.len ? value_problem(f, v) : "";
+			if (problem.len)
+			{
+				usage_error(ctx, "invalid value '%s' for %s: %s", v, flag_display(f), problem);
+				ok = false;
+			}
+			else if (f.required && !flag_is_set(ctx, f))
+			{
+				usage_error(ctx, "required flag %s not set", flag_display(f));
+				ok = false;
+			}
 		}
 	};
 	return ok;
 }
 
-fn void apply_bindings(Ctx* ctx, Command* cur) @private
+fn void apply_bindings(Ctx* ctx) @private
 {
-	cur.@each_flag(; Flag* f, bool inherited)
+	ctx.cmd.@each_flag(; Flag* f, bool inherited)
 	{
-		String key = flag_key(f);
-		if (f.bind_bool) *f.bind_bool = ctx.flag_bool(key);
-		if (f.bind_int) *f.bind_int = ctx.flag_int(key);
+		if (flag_is_set(ctx, f))
+		{
+			if (f.bind_bool) *f.bind_bool = flag_truthy(ctx, f);
+			if (f.bind_int) *f.bind_int = flag_value(ctx, f).to_long() ?? 0;
+		}
 	};
 }
 
-fn int usage_error(Command* cur, OutStream err, bool color, String format, args...) @private
+fn void? print_error(Ctx* ctx, String format, args...) @private
 {
-	io::fprintf(err, "%sError:%s ", color ? "\e[1;31m" : "", color ? "\e[0m" : "")!!;
-	io::fprintf(err, format, ...args)!!;
-	io::fprint(err, "\nRun '")!!;
-	cur.write_path(err)!!;
-	io::fprintn(err, " --help' for usage.")!!;
+	io::fprintf(ctx.err, "%sError:%s ", ctx.err_color ? "\e[1;31m" : "", ctx.err_color ? RESET : "")!;
+	io::fprintfn(ctx.err, format, ...args)!;
+}
+
+// The message, the usage of the command and a pointer to its help.
+fn void? write_usage_error(Ctx* ctx, String format, args...) @private
+{
+	print_error(ctx, format, ...args)!;
+	io::fprintn(ctx.err, "")!;
+	write_usage(ctx.cmd, ctx.err, ctx.err_color)!;
+	io::fprint(ctx.err, "\nRun '")!;
+	ctx.cmd.write_path(ctx.err)!;
+	io::fprintn(ctx.err, " --help' for more information.")!;
+}
+
+fn int usage_error(Ctx* ctx, String format, args...) @private
+{
+	(void)write_usage_error(ctx, format, ...args);
 	return EXIT_USAGE;
 }
 
-fn int unknown_flag(Command* cur, OutStream err, bool color, String shown, String suggestion) @private
+fn int unknown_flag(Ctx* ctx, String shown, String suggestion) @private
 {
-	if (suggestion.len) return usage_error(cur, err, color, "unknown flag: %s\n\nDid you mean this?\n  --%s", shown, suggestion);
-	return usage_error(cur, err, color, "unknown flag: %s", shown);
-}
-
-// Is this flag present on the command line, in the environment, or defaulted?
-fn bool Ctx.is_set(&self, Flag* f)
-{
-	foreach (p : self.parsed) if (p.flag == f) return true;
-	if (f.env.len) { if (try env::tget_var(f.env)) return true; }
-	return f.default_value.len > 0;
-}
-
-fn String flag_key(Flag* f) @private
-{
-	if (f.name.len) return f.name;
-	return (String)((char*)&f.short_name)[:1];
+	if (suggestion.len) return usage_error(ctx, "unknown flag: %s\n\nDid you mean this?\n  --%s", shown, suggestion);
+	return usage_error(ctx, "unknown flag: %s", shown);
 }
 
 fn String flag_display(Flag* f) @private
@@ -304,22 +350,24 @@ fn String flag_display(Flag* f) @private
 	return string::tformat("-%c", f.short_name);
 }
 
-fn String Command.path_string(&self)
+// Temp string; only valid inside a `@pool`.
+fn String path_of(Command* self) @private
 {
 	DString s = dstring::temp();
 	self.write_path(&s)!!;
 	return s.str_view();
 }
 
-fn bool Command.use_color(&self)
+fn bool color_for(Command* self, bool for_err) @private
 {
 	switch (self.color)
 	{
 		case ALWAYS: return true;
 		case NEVER: return false;
 		case AUTO:
-			if (self.err || self.out) return false;
-			if (try env::tget_var("NO_COLOR")) return false;
-			return io::stdout().isatty();
+			// redirected output is never colored
+			if (for_err ? self.err != null : self.out != null) return false;
+			if (try v = env::tget_var("NO_COLOR")) { if (v.len) return false; }
+			return for_err ? io::stderr().isatty() : io::stdout().isatty();
 	}
 }
