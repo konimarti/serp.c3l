@@ -60,7 +60,7 @@ fn void? man_command(Command* c, OutStream out) @local
 		{
 			io::fprintn(out, ".TP")!;
 			io::fprint(out, ".B ")!;
-			if (f.short_name) io::fprintf(out, "\\-%c", f.short_name)!;
+			if (f.short_name) io::fprintf(out, "\\-%s", char_text(f.short_name))!;
 			if (f.short_name && f.name.len) io::fprint(out, ", ")!;
 			if (f.name.len) io::fprintf(out, "\\-\\-%s", f.name)!;
 			io::fprintn(out, "")!;

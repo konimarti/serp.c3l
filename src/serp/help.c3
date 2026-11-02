@@ -95,7 +95,7 @@ fn void? write_usage(Command* c, OutStream out, bool color)
 fn void? write_flag_section(Command* c, OutStream out, bool inherited_section, String title, String b, String r) @private
 {
 	// the built-in flags, unless the user defined their own
-	Flag help = {.short_name = c.lookup_short('h') ? 0 : 'h', .name = "help", .desc = "help for this command"};
+	Flag help = {.short_name = c.lookup_short('h') ? (Char32)0 : 'h', .name = "help", .desc = "help for this command"};
 	Flag version = {.name = "version", .desc = "version for this program"};
 	List {Flag*} flags;
 	flags.tinit(8);
@@ -138,7 +138,11 @@ fn void? write_flag_section(Command* c, OutStream out, bool inherited_section, S
 fn String flag_label(Flag* f) @private
 {
 	DString s = dstring::temp();
-	if (f.short_name) s.appendf("-%c", f.short_name)!!;
+	if (f.short_name)
+	{
+		s.append_string("-");
+		s.append_char32(f.short_name);
+	}
 	if (f.short_name && f.name.len)
 	{
 		s.append_string(", ");

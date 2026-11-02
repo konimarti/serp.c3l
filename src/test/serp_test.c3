@@ -269,3 +269,29 @@ fn void test_docs_no_duplicate_and_man_escape() @test => @assert_leak()
 	sz first = o.index_of("unique-description")!!;
 	assert(!o[first + 1..].contains("unique-description"));
 }
+
+fn void test_unicode_short_flags() @test => @assert_leak()
+{
+	Command* app = serp::app("app");
+	defer app.free();
+	DString out = dstring::new(mem);
+	DString err = dstring::new(mem);
+	defer out.free();
+	defer err.free();
+	app.out = &out;
+	app.err = &err;
+	app.flag(serp::bool_flag('ü', "grün", "green"));
+	app.flag(serp::string_flag('世', "welt", "world"));
+	app.flag(serp::bool_flag('v', "verbose"));
+	app.run = &record;
+	assert(app.execute_line("app -ü") == 0 && last_verbose == false);
+	assert(app.execute_line("app -vü世 x") == 0 && last_arg == "");   // value flag takes the next arg
+	assert(app.execute_line("app -世x") == 0);
+	assert(app.execute_line("app -ö") == 2);
+	assert(err.str_view().contains("unknown flag: -ö"));
+	assert(app.execute_line("app --help") == 0);
+	assert(out.str_view().contains("-ü, --grün"));
+	assert(out.str_view().contains("-世, --welt string"));
+	assert(app.execute_line("app -世") == 2);
+	assert(err.str_view().contains("flag -世 needs a value"));
+}

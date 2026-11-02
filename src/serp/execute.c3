@@ -114,14 +114,17 @@ fn int Command.execute(&self, String[] args) => @pool()
 
 		// -a, -abc (cluster), -pVALUE, -p VALUE, -p=VALUE
 		String cluster = a[1..];
-		for (sz j = 0; j < cluster.len; j++)
+		for (sz j = 0; j < cluster.len;)
 		{
-			char ch = cluster[j];
+			sz size;
+			Char32 ch = first_char(cluster[j..], &size);
+			String shown = cluster[j:size];
+			j += size;
 			Flag* f = cur.lookup_short(ch);
 			if (!f)
 			{
 				if (ch == 'h') { want_help = true; continue; }
-				return unknown_flag(&ctx, string::tformat("-%c", ch), "");
+				return unknown_flag(&ctx, string::tformat("-%s", shown), "");
 			}
 			if (f.kind == BOOL)
 			{
@@ -129,7 +132,7 @@ fn int Command.execute(&self, String[] args) => @pool()
 				continue;
 			}
 			String value;
-			String rest = cluster[j + 1..];
+			String rest = cluster[j..];
 			if (rest.len)
 			{
 				value = rest[0] == '=' ? rest[1..] : rest;
@@ -140,7 +143,7 @@ fn int Command.execute(&self, String[] args) => @pool()
 			}
 			else
 			{
-				return usage_error(&ctx, "flag -%c needs a value", ch);
+				return usage_error(&ctx, "flag -%s needs a value", shown);
 			}
 			if (!store(&ctx, f, value)) return EXIT_USAGE;
 			break;
@@ -347,7 +350,7 @@ fn int unknown_flag(Ctx* ctx, String shown, String suggestion) @private
 fn String flag_display(Flag* f) @private
 {
 	if (f.name.len) return string::tformat("--%s", f.name);
-	return string::tformat("-%c", f.short_name);
+	return string::tformat("-%s", char_text(f.short_name));
 }
 
 // Temp string; only valid inside a `@pool`.

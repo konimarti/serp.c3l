@@ -2,13 +2,19 @@ module serp;
 
 import std::collections::list;
 import std::io;
+import std::math;
 import std::os::env;
 
-// The flag called `name` (long name, or a short name given as 1 char string) visible to the running command.
+// The flag called `name` (long name, or a short name given as 1 character string) visible to the running command.
 fn Flag* Ctx.definition(&self, String name)
 {
 	Flag* f = self.cmd.lookup_long(name);
-	if (!f && name.len == 1) f = self.cmd.lookup_short(name[0]);
+	if (!f)
+	{
+		sz size;
+		Char32 ch = first_char(name, &size);
+		if (size == name.len) f = self.cmd.lookup_short(ch);
+	}
 	return f;
 }
 
@@ -120,3 +126,24 @@ fn void? Ctx.println(&self, String format, args...) @format(1)
 
 fn bool is_false(String s) @private => s == "false" || s == "0" || s == "no" || s == "off";
 fn bool is_true(String s) @private => s == "true" || s == "1" || s == "yes" || s == "on";
+
+// The first UTF-8 codepoint of `s` (the raw byte if invalid); `size` receives its length in bytes.
+fn Char32 first_char(String s, sz* size) @private
+{
+	sz n = math::min(s.len, (sz)4);
+	if (try c = conv::utf8_to_char32(s.ptr, &n))
+	{
+		*size = n;
+		return c;
+	}
+	*size = 1;
+	return s[0];
+}
+
+// `ch` as a UTF-8 string (temp allocated).
+fn String char_text(Char32 ch) @private
+{
+	DString s = dstring::temp();
+	s.append_char32(ch);
+	return s.str_view();
+}

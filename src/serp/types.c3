@@ -32,7 +32,7 @@ enum FlagKind : char
 *>
 struct Flag
 {
-	char     short_name;    // `-p`
+	Char32   short_name;    // `-p` (any Unicode codepoint)
 	String   name;          // `--port`
 	String   desc;          // help text
 	FlagKind kind;          // BOOL by default
@@ -86,11 +86,11 @@ fn ArgSpec exact_args(sz n)          => {.kind = EXACT, .min = n, .max = n};
 fn ArgSpec range_args(sz lo, sz hi)  => {.kind = RANGE, .min = lo, .max = hi};
 
 // Shorthand constructors for the common flag types.
-fn Flag bool_flag(char short_name, String name, String desc = "")
+fn Flag bool_flag(Char32 short_name, String name, String desc = "")
 	=> {.short_name = short_name, .name = name, .desc = desc};
-fn Flag string_flag(char short_name, String name, String desc = "", String default_value = "")
+fn Flag string_flag(Char32 short_name, String name, String desc = "", String default_value = "")
 	=> {.short_name = short_name, .name = name, .desc = desc, .kind = STRING, .default_value = default_value};
-fn Flag int_flag(char short_name, String name, String desc = "", String default_value = "")
+fn Flag int_flag(Char32 short_name, String name, String desc = "", String default_value = "")
 	=> {.short_name = short_name, .name = name, .desc = desc, .kind = INT, .default_value = default_value};
 
 <*

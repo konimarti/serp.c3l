@@ -126,7 +126,7 @@ fn Flag* Command.lookup_long(&self, String name)
 	return null;
 }
 
-fn Flag* Command.lookup_short(&self, char ch)
+fn Flag* Command.lookup_short(&self, Char32 ch)
 {
 	self.@each_flag(; Flag* f, bool inherited) { if (f.short_name == ch) return f; };
 	return null;

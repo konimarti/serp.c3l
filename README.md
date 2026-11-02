@@ -114,7 +114,7 @@ serp::int_flag('p', "port", "port", "8080");               // validated integer
 Flag f = {.name = "host", .kind = STRING, .required = true, .env = "APP_HOST"};  // full control
 ```
 
-`Flag` fields: `short_name`, `name`, `desc`, `kind` (`BOOL`, `STRING`, `INT`),
+`Flag` fields: `short_name` (any Unicode codepoint, e.g. `'ü'`), `name`, `desc`, `kind` (`BOOL`, `STRING`, `INT`),
 `required`, `persistent`, `hidden`, `default_value`, `choices`, `env`,
 `value_name`, `bind_bool`, `bind_int`.
 

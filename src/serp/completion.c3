@@ -71,7 +71,7 @@ fn void? bash_options(Command* c, OutStream out) @local
 		if (!f.hidden)
 		{
 			if (f.name.len) io::fprintf(out, "--%s ", f.name)!;
-			if (f.short_name) io::fprintf(out, "-%c ", f.short_name)!;
+			if (f.short_name) io::fprintf(out, "-%s ", char_text(f.short_name))!;
 		}
 	};
 	io::fprintn(out, "\";;")!;
@@ -126,7 +126,7 @@ fn void? fish_command(Command* root, Command* c, OutStream out) @local
 		if (!f.hidden)
 		{
 			io::fprintf(out, "complete -c %s -n \"%s\"", root.name, fcond.str_view())!;
-			if (f.short_name) io::fprintf(out, " -s %c", f.short_name)!;
+			if (f.short_name) io::fprintf(out, " -s %s", char_text(f.short_name))!;
 			if (f.name.len) io::fprintf(out, " -l %s", f.name)!;
 			if (f.kind != BOOL) io::fprint(out, " -r")!;
 			io::fprintfn(out, " -d '%s'", quote(f.desc))!;
