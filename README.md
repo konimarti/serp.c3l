@@ -60,12 +60,7 @@ Did you mean this?
   greet
 ```
 
-Or let serp create the project for you:
-
-```
-c3c build serp                                   # builds build/serp
-build/serp new myapp [--serp-path ..]            # folder of serp.c3l, relative to myapp
-```
+Or let the [`serp` tool](#the-serp-tool) create the project and add commands for you.
 
 ## Install
 
@@ -80,6 +75,49 @@ Add the folder that *contains* `serp.c3l` to `dependency-search-paths` in your
 ```
 
 Then `import serp;` — that is the only import you need.
+
+## The `serp` tool
+
+`serp` scaffolds and grows serp based apps. It is built with serp itself.
+
+```
+c3c build serp                    # builds build/serp
+build/serp new myapp              # creates ./myapp (serp.c3l must sit next to it, see --serp-path)
+cd myapp
+serp add serve build              # add commands
+serp add create delete -p repo    # add subcommands: myapp repo create ...
+serp list                         # show the command tree
+serp remove repo -r               # remove a command and its subcommands
+c3c run -- repo create
+```
+
+| Command | What it does |
+|---|---|
+| `new <name>` | New project with a sample `hello` command. Names are lower case letters, digits and `-`. `--serp-path` points at the folder that contains `serp.c3l`, relative to the project (default `..`). |
+| `add <name>...` | One new file per command. `-p "repo sub"` picks the parent, `-d` sets the description. |
+| `remove <name>...` (`rm`) | Deletes the command files. A command with subcommands needs `-r`. |
+| `list` (`ls`) | Prints the command tree. |
+
+`--dir` selects the folder to work in: the project folder, or for `new` the folder
+the project is created in.
+
+**Generated layout**
+
+```
+myapp/
+  src/main.c3        yours: builds the app with build_app() and runs it
+  src/commands.c3    generated, do not edit: registers every command
+  src/cmd/serve.c3   one file per command, yours to fill in
+```
+
+Each file in `src/cmd/` starts with a `// serp:cmd <path>` line. That line is the only
+thing `serp` reads: `add` and `remove` create or delete these files and rewrite
+`src/commands.c3` from them, and they never edit your code. Files without the line
+are ignored, so you can keep helpers next to the commands.
+
+**Safe by default:** all names are checked before anything is written, so a typo
+leaves the project untouched; existing commands are never overwritten; a missing
+parent is an error.
 
 ## Concepts
 
@@ -102,6 +140,7 @@ creates a subcommand. Builders return the command, so they chain:
 | `.before(fn)` / `.after(fn)` | hooks around `run` |
 | `.before_all(fn)` | hook for the command *and* all its subcommands |
 
+`parent.add_at({"repo"}, child)` adds a child below a nested command.
 A command without `run` just shows its help. Freeing the root with `app.free()`
 releases the whole tree. Strings are borrowed: use literals or keep them alive.
 
@@ -136,6 +175,11 @@ Lookup order: command line, environment variable (if not empty), default. A flag
 given twice keeps the last value; `flag_strings` returns all of them (for a bool
 flag `.len` counts `-vvv`). Bindings are only written when the flag has a value.
 
+### Failing
+
+A run function returns a fault to fail (exit code 1, `Error: <fault>` on stderr).
+`return ctx.fail("no such file: %s", name);` prints a plain message instead.
+
 ### Argument validation
 
 `serp::no_args()`, `any_args()`, `min_args(n)`, `max_args(n)`, `exact_args(n)`,
@@ -153,6 +197,6 @@ string, which makes command trees easy to test — see `src/test/serp_test.c3`.
 ```
 src/serp/       the library (manifest.json points here)
 examples/demo/  small example app   (c3c run demo -- --help)
-tools/serp/     `serp new` scaffolder
+tools/serp/     `serp` scaffolder: new, add, remove, list
 src/test/       tests               (c3c test)
 ```
