@@ -12,7 +12,8 @@ fn Command* build_tool()
 	app.add(serp::cmd("new", "Create a new project", &new_project)
 		.usage_args("<name>")
 		.accepts(serp::exact_args(1))
-		.flag(serp::string_flag(0, "serp-path", "folder containing serp.c3l, relative to the new project", ".."))
+		.flag(serp::string_flag(0, "serp-path", "use a local serp.c3l checkout (its folder or the folder containing it) instead of installing serp into lib/"))
+		.flag(serp::bool_flag(0, "no-install", "do not run c3l; just print how to install serp"))
 		.examples("  serp new myapp\n  serp new myapp --serp-path ~/src"));
 
 	app.add(serp::cmd("add", "Add commands to the project", &add_commands)

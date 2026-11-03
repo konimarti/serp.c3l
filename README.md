@@ -82,7 +82,7 @@ Then `import serp;` — that is the only import you need.
 
 ```
 c3c build serp                    # builds build/serp
-build/serp new myapp              # creates ./myapp (serp.c3l must sit next to it, see --serp-path)
+build/serp new myapp              # creates ./myapp, installs serp into myapp/lib with c3l
 cd myapp
 serp add serve build              # add commands
 serp add create delete -p repo    # add subcommands: myapp repo create ...
@@ -93,7 +93,7 @@ c3c run -- repo create
 
 | Command | What it does |
 |---|---|
-| `new <name>` | New project with a sample `hello` command. Names are lower case letters, digits and `-`. `--serp-path` points at the folder that contains `serp.c3l`, relative to the project (default `..`). |
+| `new <name>` | New project with a sample `hello` command. Names are lower case letters, digits and `-`. The project uses `lib/` as its dependency folder; if [c3l](https://github.com/konimarti/c3l) is on the PATH, serp is installed there (`HEAD`, pinned in `c3l.lock`). Otherwise (or with `--no-install`) it prints the manual options, including `git submodule add`. `--serp-path` uses a local checkout instead: the folder containing `serp.c3l` or `serp.c3l` itself, relative to the project or absolute. |
 | `add <name>...` | One new file per command. `-p "repo sub"` picks the parent, `-d` sets the description. |
 | `remove <name>...` (`rm`) | Deletes the command files. A command with subcommands needs `-r`. |
 | `list` (`ls`) | Prints the command tree. |

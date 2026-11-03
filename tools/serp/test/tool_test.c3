@@ -66,8 +66,13 @@ fn void test_new_validates_names() @test => @assert_leak()
 	assert(!file::exists(string::tformat("%s/Bad", t.dir)));
 	assert(t.run("", "new", "my-app", "--serp-path", "/nonexistent") == 1);
 	assert(t.err.str_view().contains("serp.c3l not found"));
-	assert(t.run("", "new", "my-app") == 0);
-	assert(t.run("", "new", "my-app") == 1);                               // exists
+	assert(t.run("", "new", "lib-app", "--serp-path", "../serp.c3l/") == 0);  // path of serp.c3l itself
+	assert(t.read("lib-app/project.json").contains("[ \"..\" ]"));
+	assert(t.run("", "new", "my-app", "--no-install") == 0);
+	assert(t.read("my-app/project.json").contains("[ \"lib\" ]"));
+	assert(t.read("my-app/.gitignore").contains("lib/"));
+	assert(t.out.str_view().contains("git submodule add"));
+	assert(t.run("", "new", "my-app", "--no-install") == 1);                               // exists
 	assert(t.read("my-app/src/main.c3").contains("module my_app;"));
 	assert(t.read("my-app/src/commands.c3").contains("root.add(cmd_hello());"));
 	assert(t.read("my-app/src/cmd/hello.c3").contains("// serp:cmd hello"));
@@ -78,7 +83,7 @@ fn void test_add_list_remove() @test => @assert_leak()
 	Tool t;
 	t.init("add");
 	defer t.free();
-	assert(t.run("", "new", "app") == 0);
+	assert(t.run("", "new", "app", "--no-install") == 0);
 
 	assert(t.run("app", "add", "repo", "serve") == 0);
 	assert(t.run("app", "add", "create", "delete", "-p", "repo", "-d", "Do it") == 0);
